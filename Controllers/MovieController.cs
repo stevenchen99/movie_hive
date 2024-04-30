@@ -1,7 +1,8 @@
+using AutoMapper;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using MovieHive.Data;
+using MovieHive.DTOs;
 using MovieHive.Models;
+using MovieHive.Repositories.Interfaces;
 
 namespace MovieHive.Controllers
 {
@@ -9,103 +10,105 @@ namespace MovieHive.Controllers
     [ApiController]
     public class MovieController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IUnitOfWork _unitOfWork;
+        private readonly IMapper _mapper;
 
-        public MovieController(AppDbContext context)
+        public MovieController(IUnitOfWork unitOfWork, IMapper mapper)
         {
-            _context = context;
+            _unitOfWork = unitOfWork;
+            _mapper = mapper;
         }
 
-        // GET: api/Movies
+        // GET: api/Movie
         [HttpGet]
-        public async Task<ActionResult<IEnumerable<Movie>>> GetMovies()
+        public async Task<ActionResult<IEnumerable<MovieDTO>>> GetAllMovies()
         {
-            return await _context.Movies.ToListAsync();
+            try
+            {
+                var movies = await _unitOfWork.repoMovie.GetAll();
+                var movieListDTOs = _mapper.Map<IEnumerable<MovieDTO>>(movies);
+                return Ok(movieListDTOs);
+            }
+            catch (Exception e)
+            {
+                return StatusCode(500, $"Internal Server Error: {e.Message}");
+            }
         }
 
-        // GET: api/Movies/5
+        // GET: api/Movie/1
         [HttpGet("{id}")]
-        public async Task<ActionResult> GetMovie(int id)
+        public async Task<ActionResult> GetMovieById(int id)
         {
-            var movie = await _context.Movies.FindAsync(id);
+            var movie = await _unitOfWork.repoMovie.Get(m => m.Id == id);
 
             if (movie == null)
-            {
                 return NotFound();
-            }
 
-            return Ok(movie);
+            var movieDTO = _mapper.Map<MovieDTO>(movie);
+
+            return Ok(movieDTO);
         }
 
         // POST: api/Movies
         [HttpPost]
         public async Task<ActionResult> CreateMovie(Movie movie)
         {
-            _context.Movies.Add(movie);
-            await _context.SaveChangesAsync();
+            DateTime currentTimestamp = DateTime.Now;
+            movie.CreatedAt = currentTimestamp;
+            movie.UpdatedAt = currentTimestamp;
+            movie.CreatedBy = 0;
+            movie.UpdatedBy = 0;
 
-            return CreatedAtAction(nameof(GetMovie), new { id = movie.Id }, movie);
+            try
+            {
+                await _unitOfWork.repoMovie.Add(movie);
+                await _unitOfWork.Save();
+
+                return CreatedAtAction(nameof(GetMovieById), new { id = movie.Id }, movie);
+            }
+            catch (Exception e)
+            {
+                return StatusCode(500, $"Internal Server Error: {e.Message}");
+            }
         }
 
         // PUT: api/Movies/5
         [HttpPut("{id}")]
-        public async Task<IActionResult> UpdateMovie(int id, Movie movie)
+        public async Task<IActionResult> UpdateMovie(int id, MovieUpdateDTO movieUpdateDTO)
         {
-            if (id != movie.Id)
-            {
-                return BadRequest("ID mismatch between route parameter and request body.");
-            }
-
-            var existingMovie = await _context.Movies.FindAsync(id);
-            if (existingMovie == null)
-            {
-                return NotFound("Movie not found.");
-            }
-
-            existingMovie.Title = movie.Title;
-            existingMovie.Description = movie.Description;
-            existingMovie.Genre = movie.Genre;
-            existingMovie.Year = movie.Year;
-
             try
             {
-                await _context.SaveChangesAsync();
+                var existingMovie = await _unitOfWork.repoMovie.Get(m => m.Id == id);
+                if (existingMovie == null)
+                    return NotFound();
+
+                existingMovie.UpdatedAt = DateTime.Now;
+                existingMovie.UpdatedBy = 0;
+
+                var newMovie = _mapper.Map<Movie>(movieUpdateDTO);
+                _unitOfWork.repoMovie.Update(existingMovie, newMovie);
+                await _unitOfWork.Save();
+
+                return await GetMovieById(id);
             }
-            catch (DbUpdateConcurrencyException)
+            catch (Exception e)
             {
-                if (!MovieExists(id))
-                {
-                    return NotFound("Movie not found.");
-                }
-                else
-                {
-                    throw;
-                }
+                return StatusCode(500, $"Internal Server Error: {e.Message}");
             }
-
-            return await GetMovie(id);
         }
-
 
         // DELETE: api/Movies/5
         [HttpDelete("{id}")]
         public async Task<IActionResult> DeleteMovie(int id)
         {
-            var movie = await _context.Movies.FindAsync(id);
+            var movie = await _unitOfWork.repoMovie.Get(m => m.Id == id);
             if (movie == null)
-            {
                 return NotFound();
-            }
 
-            _context.Movies.Remove(movie);
-            await _context.SaveChangesAsync();
+            _unitOfWork.repoMovie.Remove(movie);
+            await _unitOfWork.Save();
 
             return Ok(new { id });
-        }
-
-        private bool MovieExists(int id)
-        {
-            return _context.Movies.Any(e => e.Id == id);
         }
     }
 }

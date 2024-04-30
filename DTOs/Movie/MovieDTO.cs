@@ -1,31 +1,16 @@
-using System.ComponentModel.DataAnnotations;
+using MovieHive.Models;
 
-namespace MovieHive.Models
+namespace MovieHive.DTOs
 {
-    public class Movie : Metadata
+    public class MovieDTO : Metadata
     {
-        [Key]
         public int Id { get; set; }
-
-        [Required]
         public string? Title { get; set; }
-
-        [Required]
         public string? Description { get; set; }
-
-        [Required]
         public string? Genre { get; set; }
-
-        [Required]
         public string? Director { get; set; }
-
-        [Required]
         public string? Year { get; set; }
-
-        [Required]
-        public int? Duration { get; set; }
-
-        [Required]
+        public int Duration { get; set; }
         public string? Rating { get; set; }
     }
 }
