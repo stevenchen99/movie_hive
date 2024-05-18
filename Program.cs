@@ -10,19 +10,30 @@ DotEnv.Load();
 
 var builder = WebApplication.CreateBuilder(args);
 
+/*** Add Configurations to the Container ***/
+builder.Configuration.AddEnvironmentVariables();
+
 // Add services to the container.
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
-    var server = Environment.GetEnvironmentVariable("MSSQL_DATABASE_SERVER");
-    var port = Environment.GetEnvironmentVariable("MSSQL_DATABASE_PORT");
-    var database = Environment.GetEnvironmentVariable("MSSQL_DATABASE_DATABASE");
-    var username = Environment.GetEnvironmentVariable("MSSQL_DATABASE_USERNAME");
-    var password = Environment.GetEnvironmentVariable("MSSQL_DATABASE_PASSWORD");
+    if (builder.Environment.IsProduction())
+    {
+        var server = Environment.GetEnvironmentVariable("MSSQL_DATABASE_SERVER");
+        var port = Environment.GetEnvironmentVariable("MSSQL_DATABASE_PORT");
+        var database = Environment.GetEnvironmentVariable("MSSQL_DATABASE_DATABASE");
+        var username = Environment.GetEnvironmentVariable("MSSQL_DATABASE_USERNAME");
+        var password = Environment.GetEnvironmentVariable("MSSQL_DATABASE_PASSWORD");
 
-    options.UseSqlServer(
-        $"Server={server},{port};Database={database};User ID={username};Password={password};Trusted_Connection=False;TrustServerCertificate=True"
-    );
+        options.UseSqlServer(
+            $"Server={server},{port};Database={database};User ID={username};Password={password};Trusted_Connection=False;TrustServerCertificate=True"
+        );
+    }
+
+    if (builder.Environment.IsDevelopment())
+    {
+        options.UseLazyLoadingProxies().UseInMemoryDatabase("InMem");
+    }
 });
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -53,7 +64,7 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
@@ -61,5 +72,8 @@ app.UseRouting();
 app.UseCors("AllowAll");
 
 app.MapControllerRoute(name: "default", pattern: "{controller=Home}/{action=Index}/{id?}");
+
+/*** Initial Data Seeding ***/
+InitDB.Initialize(app, app.Environment.IsProduction());
 
 app.Run();

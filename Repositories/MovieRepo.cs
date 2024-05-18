@@ -13,6 +13,7 @@ namespace MovieHive.Repositories
         /*** Methods ***/
         public void Update(Movie existingMovie, Movie newMovie)
         {
+            existingMovie.MovieId = newMovie.MovieId ?? existingMovie.MovieId;
             existingMovie.Title = newMovie.Title ?? existingMovie.Title;
             existingMovie.Description = newMovie.Description ?? existingMovie.Description;
             existingMovie.Genre = newMovie.Genre ?? existingMovie.Genre;
