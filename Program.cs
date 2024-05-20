@@ -1,9 +1,14 @@
+using System.Net;
 using dotenv.net;
+using HealthChecks.UI.Client;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.OpenApi.Models;
 using MovieHive.Data;
 using MovieHive.Repositories;
 using MovieHive.Repositories.Interfaces;
+using MovieHive.Services.HealthChecks;
 
 /* .ENV Loading */
 DotEnv.Load();
@@ -13,7 +18,27 @@ var builder = WebApplication.CreateBuilder(args);
 /*** Add Configurations to the Container ***/
 builder.Configuration.AddEnvironmentVariables();
 
+/*** Configure Kestrel Endpoints ***/
+builder.WebHost.UseKestrel(options =>
+{
+    int httpPort;
+    if (builder.Environment.IsDevelopment())
+    {
+        httpPort = 5001;
+        options.Listen(IPAddress.Loopback, httpPort); // Bind to localhost in development
+    }
+    else
+    {
+        httpPort = 8080;
+        options.Listen(IPAddress.Any, httpPort); // Bind to any IP in production
+    }
+});
+
 // Add services to the container.
+builder
+    .Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>("MSSQL Health Check", HealthStatus.Unhealthy)
+    .AddCheck<DbHealthCheck>("MSSQL Custom Health Check", HealthStatus.Unhealthy);
 builder.Services.AddAutoMapper(AppDomain.CurrentDomain.GetAssemblies());
 builder.Services.AddDbContext<AppDbContext>(options =>
 {
@@ -65,6 +90,11 @@ if (app.Environment.IsDevelopment())
 }
 
 // app.UseHttpsRedirection();
+
+app.MapHealthChecks(
+    "/health",
+    new HealthCheckOptions { ResponseWriter = UIResponseWriter.WriteHealthCheckUIResponse }
+);
 
 app.UseAuthorization();
 
