@@ -50,9 +50,10 @@ builder.Services.AddDbContext<AppDbContext>(options =>
         var username = Environment.GetEnvironmentVariable("MSSQL_DATABASE_USERNAME");
         var password = Environment.GetEnvironmentVariable("MSSQL_DATABASE_PASSWORD");
 
-        options.UseSqlServer(
-            $"Server={server},{port};Database={database};User ID={username};Password={password};Trusted_Connection=False;TrustServerCertificate=True"
-        );
+        var connectionString =
+            $"Server={server},{port};Database={database};User ID={username};Password={password};Trusted_Connection=False;TrustServerCertificate=True";
+
+        options.UseLazyLoadingProxies().UseSqlServer(connectionString);
     }
 
     if (builder.Environment.IsDevelopment())

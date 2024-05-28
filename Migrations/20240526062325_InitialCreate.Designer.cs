@@ -12,15 +12,15 @@ using MovieHive.Data;
 namespace Movie_Hive.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20240501153033_Initial_Migration")]
-    partial class Initial_Migration
+    [Migration("20240526062325_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "8.0.4")
+                .HasAnnotation("ProductVersion", "8.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
