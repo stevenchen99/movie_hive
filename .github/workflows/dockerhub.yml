@@ -2,51 +2,85 @@ name: CI Pipeline for ASP.NET API Application using Dockerhub
 
 on:
   push:
-    branches: ['backend-api']
+    branches:
+      - 'backend-api'
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*' # This pattern matches tags with the format v*.*.*
   pull_request:
     branches: ['backend-api']
 
 jobs:
   build:
-    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Checkout
+      - uses: actions/checkout@v4
+
+      - name: Debug GITHUB_REF
+        run: echo "GITHUB_REF is ${GITHUB_REF}"
+
+      - name: Determine Tag or Commit Tag
         id: vars
+        shell: bash
         run: |
-          tag=${GITHUB_REF#refs/*/}
-          tag=${tag%% *}
-          echo "tag=$tag" >> $GITHUB_OUTPUT
+          echo "Evaluating tag..."
+          echo "GITHUB_REF: ${GITHUB_REF}"
+          if [[ "${GITHUB_REF}" == refs/tags/v*.*.* ]]; then
+            tag=${GITHUB_REF#refs/tags/}
+            echo "Valid tag found: $tag"
+            echo "tag=$tag" >> $GITHUB_ENV
+            echo "run_build=true" >> $GITHUB_ENV
+          else
+            echo "No valid tag ref found. Checking commit message for a tag..."
+            commit_message=$(git log -1 --pretty=%B)
+            echo "Commit message: $commit_message"
+            if [[ "$commit_message" =~ v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+              tag=$(echo $commit_message | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+')
+              echo "Valid tag found in commit message: $tag"
+              echo "tag=$tag" >> $GITHUB_ENV
+              echo "run_build=true" >> $GITHUB_ENV
+            else
+              echo "No valid tag found."
+              echo "run_build=false" >> $GITHUB_ENV
+            fi
+          fi
+
+      - name: Debug run_build
+        run: echo "run_build is ${run_build}"
+        env:
+          run_build: ${{ env.run_build }}
+
+      - name: Skip if no tag
+        if: env.run_build == 'false'
+        run: |
+          echo "No valid tag found. Skipping build steps."
+          exit 0
 
       - name: Setup Git Config
+        if: env.run_build == 'true'
         run: |
           git config user.name "Steven Chen"
           git config user.email "kwykyaw.99@gmail.com"
 
-      - name: Save Version
-        id: version
-        run: echo ::set-output name=tag
-
       - name: Login to DockerHub Registry
-        uses: docker/login-action@v1
+        if: env.run_build == 'true'
+        uses: docker/login-action@v2
         with:
-          username: ${{  secrets.DOCKERHUB_USERNAME }}
-          password: ${{  secrets.DOCKERHUB_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
       - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v2
+        if: env.run_build == 'true'
+        uses: docker/setup-buildx-action@v3
         with:
           platforms: linux/arm64
 
       - name: Build & Push to Docker Hub Repository
-        uses: docker/build-push-action@v4
+        if: env.run_build == 'true'
+        uses: docker/build-push-action@v5
         with:
           push: true
           context: .
           file: Dockerfile.prod
           tags: |
-            ${{  secrets.DOCKERHUB_USERNAME }}/movie_hive:${{ steps.vars.outputs.tag }}
-            ${{  secrets.DOCKERHUB_USERNAME }}/movie_hive:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/movie_hive:${{ env.tag }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/movie_hive:latest
